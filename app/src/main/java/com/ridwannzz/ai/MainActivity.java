@@ -1,6 +1,8 @@
 package com.ridwannzz.ai;
 
 import android.app.Activity;
+import android.provider.Settings;
+import android.net.Uri;
 import android.os.Bundle;
 import android.graphics.Color;
 import android.graphics.Typeface;
