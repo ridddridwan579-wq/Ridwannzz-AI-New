@@ -111,6 +111,22 @@ public class MainActivity extends Activity {
         root.addView(bottom);
 
         send.setOnClickListener(v -> sendQuestion());
+        Button floatingBtn = new Button(this);
+floatingBtn.setText("Aktifkan Floating AI");
+root.addView(floatingBtn);
+
+floatingBtn.setOnClickListener(v -> {
+    if (android.provider.Settings.canDrawOverlays(this)) {
+        startService(new android.content.Intent(this, FloatingService.class));
+        Toast.makeText(this, "Floating AI aktif!", Toast.LENGTH_SHORT).show();
+    } else {
+        android.content.Intent intent = new android.content.Intent(
+            android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            android.net.Uri.parse("package:" + getPackageName())
+        );
+        startActivity(intent);
+    }
+});
 
         setContentView(root);
     }
