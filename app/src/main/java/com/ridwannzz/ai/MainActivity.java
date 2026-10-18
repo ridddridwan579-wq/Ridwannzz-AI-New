@@ -1,6 +1,8 @@
 package com.ridwannzz.ai;
 
 import android.app.Activity;
+import android.content.Intent;
+import android.media.projection.MediaProjectionManager;
 import android.provider.Settings;
 import android.net.Uri;
 import android.os.Bundle;
