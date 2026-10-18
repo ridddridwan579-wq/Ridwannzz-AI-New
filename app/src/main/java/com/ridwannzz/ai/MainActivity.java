@@ -299,27 +299,53 @@ private void sendQuestion() {
 
         return message;
     }
-
-    @Override
+@Override
 protected void onActivityResult(
-        int requestCode, int resultCode, Intent data) {
-    super.onActivityResult(requestCode, resultCode, data);
+int requestCode, int resultCode, Intent data) {
 
-    if (requestCode == 1001) {
-        if (resultCode == RESULT_OK && data != null) {
-            Toast.makeText(
-                this,
-                "Izin Scan diberikan! Langkah berikutnya: membaca layar.",
-                Toast.LENGTH_LONG
-            ).show();
+super.onActivityResult(requestCode, resultCode, data);
+
+if (requestCode == 2001) {
+    if (resultCode == RESULT_OK && data != null) {
+
+        Intent serviceIntent =
+                new Intent(this, ScreenCaptureService.class);
+
+        serviceIntent.putExtra("RESULT_CODE", resultCode);
+        serviceIntent.putExtra("RESULT_DATA", data);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
         } else {
-            Toast.makeText(
-                this,
-                "Izin Scan dibatalkan.",
-                Toast.LENGTH_SHORT
-            ).show();
+            startService(serviceIntent);
         }
+
+        Toast.makeText(
+                this,
+                "Izin diberikan. Memproses layar...",
+                Toast.LENGTH_SHORT
+        ).show();
+
+    } else {
+        Toast.makeText(
+                this,
+                "Izin tangkap layar dibatalkan.",
+                Toast.LENGTH_SHORT
+        ).show();
     }
+
+    finish();
+
+} else if (requestCode == 1001) {
+    Toast.makeText(
+            this,
+            resultCode == RESULT_OK
+                    ? "Izin Scan diberikan."
+                    : "Izin Scan dibatalkan.",
+            Toast.LENGTH_SHORT
+    ).show();
+}
+
 }
 
 @Override
