@@ -9,38 +9,48 @@ import android.os.Build;
 import android.os.IBinder;
 import android.view.Gravity;
 import android.view.MotionEvent;
-import android.view.View;
 import android.view.WindowManager;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.TextView;
-import android.widget.Toast;
+import android.view.inputmethod.InputMethodManager;
+import android.content.Context;
+import android.view.View;
+import android.widget.*;
+
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class FloatingService extends Service {
 
     private WindowManager wm;
     private TextView bubble;
     private View panel;
+    private LinearLayout messages;
+    private EditText questionInput;
+    private Button sendButton;
+    private ScrollView scroll;
     private WindowManager.LayoutParams bubbleParams;
     private WindowManager.LayoutParams panelParams;
 
-    private int purple = Color.rgb(124, 92, 255);
-    private int bg = Color.rgb(15, 17, 30);
+    private final ExecutorService executor =
+            Executors.newSingleThreadExecutor();
+
+    private final String WEB_APP_URL =
+            "https://script.google.com/macros/s/AKfycbxMKhsxxI1eEUwolU27xE5PPG2PhI22U_ClJn52VE8WtArgtAlnnKEPuekssDJWJTE/exec";
+
+    private final int purple = Color.rgb(124, 92, 255);
+    private final int bg = Color.rgb(15, 17, 30);
 
     @Override
     public IBinder onBind(Intent intent) {
         return null;
-    }
-
-    @Override
-    public void onCreate() {
-        super.onCreate();
-
-        wm = (WindowManager) getSystemService(WINDOW_SERVICE);
-
-        showBubble();
     }
 
     private int getWindowType() {
@@ -50,12 +60,27 @@ public class FloatingService extends Service {
         return WindowManager.LayoutParams.TYPE_PHONE;
     }
 
-    private WindowManager.LayoutParams makeParams(int width, int height) {
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        wm = (WindowManager) getSystemService(WINDOW_SERVICE);
+        showBubble();
+    }
+
+    private WindowManager.LayoutParams makeParams(
+            int width, int height, boolean focusable) {
+
+        int flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
+
+        if (!focusable) {
+            flags |= WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+        }
+
         return new WindowManager.LayoutParams(
                 width,
                 height,
                 getWindowType(),
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                flags,
                 PixelFormat.TRANSLUCENT
         );
     }
@@ -69,7 +94,7 @@ public class FloatingService extends Service {
         bubble.setGravity(Gravity.CENTER);
         bubble.setBackgroundColor(purple);
 
-        bubbleParams = makeParams(60, 60);
+        bubbleParams = makeParams(60, 60, false);
         bubbleParams.gravity = Gravity.TOP | Gravity.START;
         bubbleParams.x = 30;
         bubbleParams.y = 250;
@@ -119,13 +144,11 @@ public class FloatingService extends Service {
     }
 
     private void showPanel() {
-        if (panel != null) {
-            return;
-        }
+        if (panel != null) return;
 
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(16, 16, 16, 12);
+        box.setPadding(16, 12, 16, 12);
         box.setBackgroundColor(bg);
 
         LinearLayout header = new LinearLayout(this);
@@ -137,63 +160,202 @@ public class FloatingService extends Service {
         title.setTextSize(20);
         title.setTypeface(null, Typeface.BOLD);
 
-        header.addView(title, new LinearLayout.LayoutParams(
-                0, -2, 1
-        ));
+        header.addView(title, new LinearLayout.LayoutParams(0, 50, 1));
 
         Button close = new Button(this);
-        close.setText("X");
-        header.addView(close, new LinearLayout.LayoutParams(
-                -2, 45
-        ));
+        close.setText("Tutup");
+        header.addView(close);
 
         box.addView(header);
 
-        TextView info = new TextView(this);
-        info.setText("Untuk chat lengkap, buka aplikasi Ridwannzz AI.");
-        info.setTextColor(Color.LTGRAY);
-        info.setTextSize(14);
-        info.setPadding(0, 12, 0, 12);
-        box.addView(info);
+        scroll = new ScrollView(this);
+        messages = new LinearLayout(this);
+        messages.setOrientation(LinearLayout.VERTICAL);
+        messages.setPadding(4, 8, 4, 8);
 
-        Button openChat = new Button(this);
-        openChat.setText("Buka Chat AI");
-        openChat.setTextColor(Color.WHITE);
-        openChat.setBackgroundTintList(
+        TextView welcome = new TextView(this);
+        welcome.setText("Halo! Tulis soalmu di bawah. Aku siap membantu!");
+        welcome.setTextColor(Color.WHITE);
+        welcome.setTextSize(15);
+        welcome.setPadding(10, 12, 10, 12);
+        messages.addView(welcome);
+
+        scroll.addView(messages);
+
+        box.addView(scroll, new LinearLayout.LayoutParams(
+                -1, 0, 1
+        ));
+
+        LinearLayout bottom = new LinearLayout(this);
+        bottom.setGravity(Gravity.CENTER_VERTICAL);
+
+        questionInput = new EditText(this);
+        questionInput.setSingleLine(false);
+        questionInput.setHint("Tulis soal...");
+        questionInput.setTextColor(Color.WHITE);
+        questionInput.setHintTextColor(Color.LTGRAY);
+        questionInput.setTextSize(14);
+        questionInput.setPadding(10, 8, 10, 8);
+        questionInput.setBackgroundColor(Color.rgb(35, 38, 58));
+
+        bottom.addView(questionInput,
+                new LinearLayout.LayoutParams(0, 52, 1));
+
+        sendButton = new Button(this);
+        sendButton.setText("Kirim");
+        sendButton.setTextColor(Color.WHITE);
+        sendButton.setBackgroundTintList(
                 android.content.res.ColorStateList.valueOf(purple)
         );
-        box.addView(openChat);
 
-        close.setOnClickListener(v -> hidePanel());
+        bottom.addView(sendButton,
+                new LinearLayout.LayoutParams(-2, 52));
 
-        openChat.setOnClickListener(v -> {
-            Intent intent = new Intent(
-                    FloatingService.this,
-                    MainActivity.class
-            );
-            intent.addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK
-                            | Intent.FLAG_ACTIVITY_SINGLE_TOP
-            );
-            startActivity(intent);
-        });
+        box.addView(bottom);
 
         panel = box;
 
         panelParams = makeParams(
-                (int) (getResources().getDisplayMetrics().widthPixels * 0.88),
-                -2
+                (int) (getResources().getDisplayMetrics().widthPixels * 0.90),
+                (int) (getResources().getDisplayMetrics().heightPixels * 0.65),
+                true
         );
+
         panelParams.gravity = Gravity.CENTER;
-        panelParams.flags =
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
 
         try {
             wm.addView(panel, panelParams);
         } catch (Exception e) {
             panel = null;
-            Toast.makeText(this, "Gagal membuka panel", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Tidak bisa membuka panel",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        close.setOnClickListener(v -> hidePanel());
+
+        sendButton.setOnClickListener(v -> sendQuestion());
+    }
+
+    private void addFloatingMessage(String text, int color) {
+        TextView message = new TextView(this);
+        message.setText(text);
+        message.setTextColor(color);
+        message.setTextSize(14);
+        message.setPadding(10, 10, 10, 10);
+
+        LinearLayout.LayoutParams lp =
+                new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, 5, 0, 5);
+
+        messages.addView(message, lp);
+        scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
+    }
+
+    private void sendQuestion() {
+        String question = questionInput.getText().toString().trim();
+
+        if (question.isEmpty()) {
+            Toast.makeText(this, "Tulis soal dulu!",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        addFloatingMessage("Kamu: " + question, Color.WHITE);
+        questionInput.setText("");
+        sendButton.setEnabled(false);
+        sendButton.setText("...");
+
+        executor.execute(() -> {
+            String answer;
+
+            try {
+                answer = askGemini(question);
+            } catch (Exception e) {
+                answer = "Gagal menghubungi AI: " + e.getMessage();
+            }
+
+            String result = answer;
+
+            android.os.Handler handler =
+                    new android.os.Handler(getMainLooper());
+
+            handler.post(() -> {
+                if (panel != null && messages != null) {
+                    addFloatingMessage(
+                            "Ridwannzz AI: " + result,
+                            Color.rgb(190, 175, 255)
+                    );
+                    sendButton.setEnabled(true);
+                    sendButton.setText("Kirim");
+                }
+            });
+        });
+    }
+
+    private String askGemini(String question) throws Exception {
+        HttpURLConnection connection = null;
+
+        try {
+            URL url = new URL(WEB_APP_URL);
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setConnectTimeout(20000);
+            connection.setReadTimeout(60000);
+            connection.setDoOutput(true);
+            connection.setInstanceFollowRedirects(true);
+            connection.setRequestProperty(
+                    "Content-Type", "application/json; charset=UTF-8"
+            );
+
+            JSONObject payload = new JSONObject();
+            payload.put("question", question);
+
+            byte[] data = payload.toString().getBytes(
+                    StandardCharsets.UTF_8
+            );
+
+            try (OutputStream output = connection.getOutputStream()) {
+                output.write(data);
+            }
+
+            int status = connection.getResponseCode();
+
+            InputStream stream = (status >= 200 && status < 400)
+                    ? connection.getInputStream()
+                    : connection.getErrorStream();
+
+            if (stream == null) {
+                throw new Exception("Server tidak mengirim respons.");
+            }
+
+            StringBuilder response = new StringBuilder();
+
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+            }
+
+            if (status < 200 || status >= 400) {
+                throw new Exception("HTTP " + status);
+            }
+
+            JSONObject json = new JSONObject(response.toString());
+
+            if (!json.optBoolean("success", false)) {
+                return "Backend: " +
+                        json.optString("error", "Terjadi kesalahan.");
+            }
+
+            return json.optString("answer", "Jawaban kosong.");
+
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
         }
     }
 
@@ -201,21 +363,23 @@ public class FloatingService extends Service {
         if (panel != null) {
             wm.removeView(panel);
             panel = null;
+            messages = null;
+            questionInput = null;
+            sendButton = null;
+            scroll = null;
         }
     }
 
     @Override
     public void onDestroy() {
-        super.onDestroy();
-
-        if (panel != null) {
-            wm.removeView(panel);
-            panel = null;
-        }
+        hidePanel();
 
         if (bubble != null) {
             wm.removeView(bubble);
             bubble = null;
         }
+
+        executor.shutdownNow();
+        super.onDestroy();
     }
 }
