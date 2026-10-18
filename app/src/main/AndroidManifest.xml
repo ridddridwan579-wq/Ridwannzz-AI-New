@@ -13,8 +13,13 @@
         android:supportsRtl="true">
 
         <service
-            android:name=".FloatingService"
-            android:exported="false" />
+    android:name=".FloatingService"
+    android:exported="false" />
+
+<service
+    android:name=".ScreenCaptureService"
+    android:exported="false"
+    android:foregroundServiceType="mediaProjection" />
 
         <activity
             android:name=".MainActivity"
