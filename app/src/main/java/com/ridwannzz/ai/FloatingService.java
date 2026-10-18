@@ -4,20 +4,25 @@ import android.app.Service;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
+import android.graphics.Typeface;
 import android.os.Build;
 import android.os.IBinder;
 import android.view.Gravity;
 import android.view.MotionEvent;
-import android.view.View;
 import android.view.WindowManager;
 import android.widget.TextView;
-import android.graphics.Typeface;
 
 public class FloatingService extends Service {
 
     private WindowManager windowManager;
     private TextView floatingButton;
     private WindowManager.LayoutParams params;
+
+    private float touchX;
+    private float touchY;
+    private int startX;
+    private int startY;
+    private boolean moved;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -37,13 +42,18 @@ public class FloatingService extends Service {
         floatingButton.setTypeface(null, Typeface.BOLD);
         floatingButton.setTextColor(Color.WHITE);
         floatingButton.setGravity(Gravity.CENTER);
-        floatingButton.setBackgroundColor(Color.rgb(124, 92, 255));
+        floatingButton.setBackgroundColor(
+                Color.rgb(124, 92, 255)
+        );
 
         int windowType;
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            windowType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+            windowType =
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
         } else {
-            windowType = WindowManager.LayoutParams.TYPE_PHONE;
+            windowType =
+                    WindowManager.LayoutParams.TYPE_PHONE;
         }
 
         params = new WindowManager.LayoutParams(
@@ -58,33 +68,53 @@ public class FloatingService extends Service {
         params.x = 30;
         params.y = 250;
 
-        floatingButton.setOnTouchListener(new View.OnTouchListener() {
-            private int startX;
-            private int startY;
-            private float touchX;
-            private float touchY;
+        floatingButton.setOnTouchListener((view, event) -> {
+            switch (event.getAction()) {
 
-            @Override
-            public boolean onTouch(View view, MotionEvent event) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        startX = params.x;
-                        startY = params.y;
-                        touchX = event.getRawX();
-                        touchY = event.getRawY();
-                        return true;
+                case MotionEvent.ACTION_DOWN:
+                    startX = params.x;
+                    startY = params.y;
+                    touchX = event.getRawX();
+                    touchY = event.getRawY();
+                    moved = false;
+                    return true;
 
-                    case MotionEvent.ACTION_MOVE:
-                        params.x = startX + (int) (event.getRawX() - touchX);
-                        params.y = startY + (int) (event.getRawY() - touchY);
-                        windowManager.updateViewLayout(floatingButton, params);
-                        return true;
+                case MotionEvent.ACTION_MOVE:
+                    int dx = (int) (event.getRawX() - touchX);
+                    int dy = (int) (event.getRawY() - touchY);
 
-                    case MotionEvent.ACTION_UP:
-                        return true;
-                }
-                return false;
+                    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+                        moved = true;
+                    }
+
+                    if (moved) {
+                        params.x = startX + dx;
+                        params.y = startY + dy;
+
+                        windowManager.updateViewLayout(
+                                floatingButton, params
+                        );
+                    }
+                    return true;
+
+                case MotionEvent.ACTION_UP:
+                    if (!moved) {
+                        Intent intent = new Intent(
+                                FloatingService.this,
+                                MainActivity.class
+                        );
+
+                        intent.addFlags(
+                                Intent.FLAG_ACTIVITY_NEW_TASK
+                                | Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        );
+
+                        startActivity(intent);
+                    }
+                    return true;
             }
+
+            return true;
         });
 
         windowManager.addView(floatingButton, params);
@@ -99,4 +129,4 @@ public class FloatingService extends Service {
             floatingButton = null;
         }
     }
-  }
+}
