@@ -10,6 +10,10 @@
         android:allowBackup="false"
         android:supportsRtl="true">
 
+        <service
+            android:name=".FloatingService"
+            android:exported="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">
