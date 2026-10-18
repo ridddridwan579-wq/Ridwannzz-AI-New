@@ -24,7 +24,7 @@ import java.util.concurrent.Executors;
 public class MainActivity extends Activity {
 
     private static final String WEB_APP_URL =
-        "https://script.google.com/macros/s/AKfycbwBHTeT477x7P6jv_cnaJAZRc4sFQRKinviJuaeD4pmGCFeDZLQOYRZQxYKAPOfUIkx/exec";
+    "https://script.google.com/macros/s/AKfycbxMKhsxxI1eEUwolU27xE5PPG2PhI22U_ClJn52VE8WtArgtAlnnKEPuekssDJWJTE/exec";
 
     private LinearLayout chatLayout;
     private EditText input;
