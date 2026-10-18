@@ -296,15 +296,12 @@ public class FloatingService extends Service {
     }
 
     // Placeholder: sistem tangkap layar dan OCR perlu ditambahkan
-    private void startAutoAnswer() {
-        Toast.makeText(
-                this,
-                "Jawab Otomatis belum terhubung ke tangkap layar dan OCR.",
-                Toast.LENGTH_LONG
-        ).show();
-
-        // Berikutnya: hubungkan ke MainActivity untuk meminta
-        // izin tangkap layar, kemudian jalankan OCR.
+private void startAutoAnswer() {
+    Intent intent = new Intent(this, MainActivity.class);
+    intent.putExtra("START_AUTO_ANSWER", true);
+    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+    startActivity(intent);
+}
     }
 
     private void addFloatingMessage(String text, int color) {
