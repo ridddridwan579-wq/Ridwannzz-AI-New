@@ -1,5 +1,6 @@
 package com.ridwannzz.ai;
 
+import android.os.Build;
 import android.app.Activity;
 import android.content.Intent;
 import android.media.projection.MediaProjectionManager;
@@ -144,9 +145,34 @@ floatingBtn.setOnClickListener(v -> {
 });
 
         setContentView(root);
-    }
 
-    private void sendQuestion() {
+    if (getIntent().getBooleanExtra(
+            "START_AUTO_ANSWER", false)) {
+        requestScreenCapture();
+    }
+}
+
+private void requestScreenCapture() {
+    MediaProjectionManager manager =
+            (MediaProjectionManager) getSystemService(
+                    Context.MEDIA_PROJECTION_SERVICE
+            );
+
+    if (manager != null) {
+        Intent captureIntent =
+                manager.createScreenCaptureIntent();
+
+        startActivityForResult(captureIntent, 2001);
+    } else {
+        Toast.makeText(
+                this,
+                "Fitur tangkap layar tidak tersedia.",
+                Toast.LENGTH_LONG
+        ).show();
+    }
+}
+
+private void sendQuestion() {
         String question = input.getText().toString().trim();
 
         if (question.isEmpty()) {
