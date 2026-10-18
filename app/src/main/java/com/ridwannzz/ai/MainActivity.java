@@ -275,8 +275,29 @@ floatingBtn.setOnClickListener(v -> {
     }
 
     @Override
-    protected void onDestroy() {
-        executor.shutdownNow();
-        super.onDestroy();
+protected void onActivityResult(
+        int requestCode, int resultCode, Intent data) {
+    super.onActivityResult(requestCode, resultCode, data);
+
+    if (requestCode == 1001) {
+        if (resultCode == RESULT_OK && data != null) {
+            Toast.makeText(
+                this,
+                "Izin Scan diberikan! Langkah berikutnya: membaca layar.",
+                Toast.LENGTH_LONG
+            ).show();
+        } else {
+            Toast.makeText(
+                this,
+                "Izin Scan dibatalkan.",
+                Toast.LENGTH_SHORT
+            ).show();
+        }
     }
+}
+
+@Override
+protected void onDestroy() {
+    executor.shutdownNow();
+    super.onDestroy();
 }
