@@ -5,19 +5,36 @@ import android.os.Bundle;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.view.Gravity;
-import android.view.View;
-import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
 import android.content.Context;
 import android.widget.*;
 
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 public class MainActivity extends Activity {
 
-    LinearLayout chatLayout;
-    EditText input;
+    private static final String WEB_APP_URL =
+        "https://script.google.com/macros/s/AKfycbwBHTeT477x7P6jv_cnaJAZRc4sFQRKinviJuaeD4pmGCFeDZLQOYRZQxYKAPOfUIkx/exec";
 
-    int bg = Color.rgb(15, 17, 30);
-    int purple = Color.rgb(124, 92, 255);
+    private LinearLayout chatLayout;
+    private EditText input;
+    private Button send;
+    private ScrollView scroll;
+    private final ExecutorService executor =
+        Executors.newSingleThreadExecutor();
+
+    private final int bg = Color.rgb(15, 17, 30);
+    private final int purple = Color.rgb(124, 92, 255);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,9 +51,7 @@ public class MainActivity extends Activity {
         title.setTypeface(null, Typeface.BOLD);
         title.setTextColor(Color.WHITE);
         title.setGravity(Gravity.CENTER_VERTICAL);
-        root.addView(title, new LinearLayout.LayoutParams(
-            -1, 60
-        ));
+        root.addView(title, new LinearLayout.LayoutParams(-1, 60));
 
         TextView subtitle = new TextView(this);
         subtitle.setText("Asisten AI untuk membantu belajar");
@@ -44,7 +59,7 @@ public class MainActivity extends Activity {
         subtitle.setTextSize(14);
         root.addView(subtitle);
 
-        ScrollView scroll = new ScrollView(this);
+        scroll = new ScrollView(this);
         chatLayout = new LinearLayout(this);
         chatLayout.setOrientation(LinearLayout.VERTICAL);
         chatLayout.setPadding(0, 20, 0, 20);
@@ -70,10 +85,8 @@ public class MainActivity extends Activity {
 
         LinearLayout bottom = new LinearLayout(this);
         bottom.setGravity(Gravity.CENTER_VERTICAL);
-        bottom.setOrientation(LinearLayout.HORIZONTAL);
 
         input = new EditText(this);
-        input.setSingleLine(false);
         input.setHint("Tulis soal di sini...");
         input.setTextColor(Color.WHITE);
         input.setHintTextColor(Color.GRAY);
@@ -85,46 +98,133 @@ public class MainActivity extends Activity {
             0, 55, 1
         ));
 
-        Button send = new Button(this);
+        send = new Button(this);
         send.setText("Kirim");
         send.setTextColor(Color.WHITE);
         send.setBackgroundTintList(
             android.content.res.ColorStateList.valueOf(purple)
         );
 
-        bottom.addView(send, new LinearLayout.LayoutParams(
-            -2, 55
-        ));
-
+        bottom.addView(send, new LinearLayout.LayoutParams(-2, 55));
         root.addView(bottom);
 
-        send.setOnClickListener(v -> {
-            String question = input.getText().toString().trim();
-
-            if (question.isEmpty()) {
-                Toast.makeText(this, "Masukkan soal dulu!", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            addMessage("Kamu: " + question, Color.WHITE);
-
-            addMessage(
-                "Ridwannzz AI: Fitur AI sedang disiapkan. " +
-                "Nanti aku akan membantu menjawab dan menjelaskan soalmu.",
-                Color.rgb(190, 175, 255)
-            );
-
-            input.setText("");
-
-            ((InputMethodManager) getSystemService(
-                Context.INPUT_METHOD_SERVICE
-            )).hideSoftInputFromWindow(input.getWindowToken(), 0);
-        });
+        send.setOnClickListener(v -> sendQuestion());
 
         setContentView(root);
     }
 
-    private void addMessage(String text, int color) {
+    private void sendQuestion() {
+        String question = input.getText().toString().trim();
+
+        if (question.isEmpty()) {
+            Toast.makeText(this, "Masukkan soal dulu!",
+                Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        addMessage("Kamu: " + question, Color.WHITE);
+        input.setText("");
+
+        ((InputMethodManager) getSystemService(
+            Context.INPUT_METHOD_SERVICE
+        )).hideSoftInputFromWindow(input.getWindowToken(), 0);
+
+        send.setEnabled(false);
+        send.setText("...");
+
+        TextView loading = addMessage(
+            "Ridwannzz AI sedang berpikir...",
+            Color.rgb(190, 175, 255)
+        );
+
+        executor.execute(() -> {
+            String answer;
+
+            try {
+                answer = askGemini(question);
+            } catch (Exception e) {
+                answer = "Gagal menghubungi AI: " + e.getMessage();
+            }
+
+            final String result = answer;
+
+            runOnUiThread(() -> {
+                chatLayout.removeView(loading);
+                addMessage("Ridwannzz AI: " + result,
+                    Color.rgb(190, 175, 255));
+                send.setEnabled(true);
+                send.setText("Kirim");
+            });
+        });
+    }
+
+    private String askGemini(String question) throws Exception {
+        HttpURLConnection connection = null;
+
+        try {
+            URL url = new URL(WEB_APP_URL);
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setConnectTimeout(20000);
+            connection.setReadTimeout(60000);
+            connection.setDoOutput(true);
+            connection.setInstanceFollowRedirects(true);
+            connection.setRequestProperty(
+                "Content-Type", "application/json; charset=UTF-8"
+            );
+
+            JSONObject payload = new JSONObject();
+            payload.put("question", question);
+
+            byte[] data = payload.toString().getBytes(
+                StandardCharsets.UTF_8
+            );
+
+            try (OutputStream output = connection.getOutputStream()) {
+                output.write(data);
+            }
+
+            int status = connection.getResponseCode();
+
+            InputStream stream = (status >= 200 && status < 400)
+                ? connection.getInputStream()
+                : connection.getErrorStream();
+
+            if (stream == null) {
+                throw new Exception("Server tidak mengirim respons.");
+            }
+
+            StringBuilder response = new StringBuilder();
+
+            try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+            }
+
+            if (status < 200 || status >= 400) {
+                throw new Exception("HTTP " + status);
+            }
+
+            JSONObject json = new JSONObject(response.toString());
+
+            if (!json.optBoolean("success", false)) {
+                return "Backend: " +
+                    json.optString("error", "Terjadi kesalahan.");
+            }
+
+            return json.optString("answer", "Jawaban kosong.");
+
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    private TextView addMessage(String text, int color) {
         TextView message = new TextView(this);
         message.setText(text);
         message.setTextColor(color);
@@ -133,8 +233,17 @@ public class MainActivity extends Activity {
 
         LinearLayout.LayoutParams params =
             new LinearLayout.LayoutParams(-1, -2);
-
         params.setMargins(0, 8, 0, 8);
+
         chatLayout.addView(message, params);
+        scroll.post(() -> scroll.fullScroll(ScrollView.FOCUS_DOWN));
+
+        return message;
+    }
+
+    @Override
+    protected void onDestroy() {
+        executor.shutdownNow();
+        super.onDestroy();
     }
 }
