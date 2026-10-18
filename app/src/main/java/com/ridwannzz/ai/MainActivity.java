@@ -113,6 +113,19 @@ public class MainActivity extends Activity {
         root.addView(bottom);
 
         send.setOnClickListener(v -> sendQuestion());
+        Button scanBtn = new Button(this);
+scanBtn.setText("📸 Scan Layar");
+root.addView(scanBtn);
+
+scanBtn.setOnClickListener(v -> {
+    MediaProjectionManager manager =
+        (MediaProjectionManager) getSystemService(
+            Context.MEDIA_PROJECTION_SERVICE
+        );
+
+    Intent captureIntent = manager.createScreenCaptureIntent();
+    startActivityForResult(captureIntent, 1001);
+});
         Button floatingBtn = new Button(this);
 floatingBtn.setText("Aktifkan Floating AI");
 root.addView(floatingBtn);
