@@ -10,8 +10,6 @@ import android.os.IBinder;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.WindowManager;
-import android.view.inputmethod.InputMethodManager;
-import android.content.Context;
 import android.view.View;
 import android.widget.*;
 
@@ -36,6 +34,7 @@ public class FloatingService extends Service {
     private EditText questionInput;
     private Button sendButton;
     private ScrollView scroll;
+
     private WindowManager.LayoutParams bubbleParams;
     private WindowManager.LayoutParams panelParams;
 
@@ -53,18 +52,18 @@ public class FloatingService extends Service {
         return null;
     }
 
-    private int getWindowType() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            return WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
-        }
-        return WindowManager.LayoutParams.TYPE_PHONE;
-    }
-
     @Override
     public void onCreate() {
         super.onCreate();
         wm = (WindowManager) getSystemService(WINDOW_SERVICE);
         showBubble();
+    }
+
+    private int getWindowType() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            return WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+        }
+        return WindowManager.LayoutParams.TYPE_PHONE;
     }
 
     private WindowManager.LayoutParams makeParams(
@@ -132,7 +131,7 @@ public class FloatingService extends Service {
 
                     case MotionEvent.ACTION_UP:
                         if (!moved) {
-                            showPanel();
+                            showMenu();
                         }
                         return true;
                 }
@@ -143,7 +142,81 @@ public class FloatingService extends Service {
         wm.addView(bubble, bubbleParams);
     }
 
-    private void showPanel() {
+    // Menu utama saat tombol R ditekan
+    private void showMenu() {
+        if (panel != null) return;
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(24, 20, 24, 20);
+        box.setBackgroundColor(bg);
+
+        TextView title = new TextView(this);
+        title.setText("Ridwannzz AI");
+        title.setTextColor(Color.WHITE);
+        title.setTextSize(22);
+        title.setTypeface(null, Typeface.BOLD);
+        title.setGravity(Gravity.CENTER);
+        box.addView(title);
+
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Pilih fitur yang ingin digunakan");
+        subtitle.setTextColor(Color.LTGRAY);
+        subtitle.setGravity(Gravity.CENTER);
+        subtitle.setPadding(0, 8, 0, 20);
+        box.addView(subtitle);
+
+        Button chatButton = new Button(this);
+        chatButton.setText("💬 Chat AI Biasa");
+        box.addView(chatButton, new LinearLayout.LayoutParams(
+                -1, 55
+        ));
+
+        Button autoButton = new Button(this);
+        autoButton.setText("⚡ Jawab Otomatis");
+        box.addView(autoButton, new LinearLayout.LayoutParams(
+                -1, 55
+        ));
+
+        Button closeButton = new Button(this);
+        closeButton.setText("Tutup");
+        box.addView(closeButton, new LinearLayout.LayoutParams(
+                -1, 48
+        ));
+
+        panel = box;
+
+        panelParams = makeParams(
+                (int) (getResources().getDisplayMetrics().widthPixels * 0.85),
+                -2,
+                true
+        );
+        panelParams.gravity = Gravity.CENTER;
+
+        try {
+            wm.addView(panel, panelParams);
+        } catch (Exception e) {
+            panel = null;
+            Toast.makeText(this, "Menu gagal dibuka",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        chatButton.setOnClickListener(v -> {
+            hidePanel();
+            showChatPanel();
+        });
+
+        autoButton.setOnClickListener(v -> {
+            hidePanel();
+            startAutoAnswer();
+        });
+
+        closeButton.setOnClickListener(v -> hidePanel());
+    }
+
+    // Chat biasa tetap memakai backend yang sudah ada
+    private void showChatPanel() {
         if (panel != null) return;
 
         LinearLayout box = new LinearLayout(this);
@@ -155,17 +228,15 @@ public class FloatingService extends Service {
         header.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView title = new TextView(this);
-        title.setText("Ridwannzz AI");
+        title.setText("Chat AI Biasa");
         title.setTextColor(Color.WHITE);
         title.setTextSize(20);
         title.setTypeface(null, Typeface.BOLD);
-
         header.addView(title, new LinearLayout.LayoutParams(0, 50, 1));
 
         Button close = new Button(this);
         close.setText("Tutup");
         header.addView(close);
-
         box.addView(header);
 
         scroll = new ScrollView(this);
@@ -174,28 +245,23 @@ public class FloatingService extends Service {
         messages.setPadding(4, 8, 4, 8);
 
         TextView welcome = new TextView(this);
-        welcome.setText("Halo! Tulis soalmu di bawah. Aku siap membantu!");
+        welcome.setText("Halo! Tulis soalmu di bawah.");
         welcome.setTextColor(Color.WHITE);
         welcome.setTextSize(15);
         welcome.setPadding(10, 12, 10, 12);
         messages.addView(welcome);
-
         scroll.addView(messages);
 
-        box.addView(scroll, new LinearLayout.LayoutParams(
-                -1, 0, 1
-        ));
+        box.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
         LinearLayout bottom = new LinearLayout(this);
         bottom.setGravity(Gravity.CENTER_VERTICAL);
 
         questionInput = new EditText(this);
-        questionInput.setSingleLine(false);
         questionInput.setHint("Tulis soal...");
         questionInput.setTextColor(Color.WHITE);
         questionInput.setHintTextColor(Color.LTGRAY);
         questionInput.setTextSize(14);
-        questionInput.setPadding(10, 8, 10, 8);
         questionInput.setBackgroundColor(Color.rgb(35, 38, 58));
 
         bottom.addView(questionInput,
@@ -203,16 +269,10 @@ public class FloatingService extends Service {
 
         sendButton = new Button(this);
         sendButton.setText("Kirim");
-        sendButton.setTextColor(Color.WHITE);
-        sendButton.setBackgroundTintList(
-                android.content.res.ColorStateList.valueOf(purple)
-        );
-
         bottom.addView(sendButton,
                 new LinearLayout.LayoutParams(-2, 52));
 
         box.addView(bottom);
-
         panel = box;
 
         panelParams = makeParams(
@@ -220,24 +280,36 @@ public class FloatingService extends Service {
                 (int) (getResources().getDisplayMetrics().heightPixels * 0.65),
                 true
         );
-
         panelParams.gravity = Gravity.CENTER;
 
         try {
             wm.addView(panel, panelParams);
         } catch (Exception e) {
             panel = null;
-            Toast.makeText(this, "Tidak bisa membuka panel",
+            Toast.makeText(this, "Chat gagal dibuka",
                     Toast.LENGTH_SHORT).show();
             return;
         }
 
         close.setOnClickListener(v -> hidePanel());
-
         sendButton.setOnClickListener(v -> sendQuestion());
     }
 
+    // Placeholder: sistem tangkap layar dan OCR perlu ditambahkan
+    private void startAutoAnswer() {
+        Toast.makeText(
+                this,
+                "Jawab Otomatis belum terhubung ke tangkap layar dan OCR.",
+                Toast.LENGTH_LONG
+        ).show();
+
+        // Berikutnya: hubungkan ke MainActivity untuk meminta
+        // izin tangkap layar, kemudian jalankan OCR.
+    }
+
     private void addFloatingMessage(String text, int color) {
+        if (messages == null || scroll == null) return;
+
         TextView message = new TextView(this);
         message.setText(text);
         message.setTextColor(color);
@@ -253,6 +325,8 @@ public class FloatingService extends Service {
     }
 
     private void sendQuestion() {
+        if (questionInput == null || sendButton == null) return;
+
         String question = questionInput.getText().toString().trim();
 
         if (question.isEmpty()) {
@@ -275,13 +349,11 @@ public class FloatingService extends Service {
                 answer = "Gagal menghubungi AI: " + e.getMessage();
             }
 
-            String result = answer;
+            final String result = answer;
 
-            android.os.Handler handler =
-                    new android.os.Handler(getMainLooper());
-
-            handler.post(() -> {
-                if (panel != null && messages != null) {
+            new android.os.Handler(getMainLooper()).post(() -> {
+                if (panel != null && messages != null
+                        && sendButton != null) {
                     addFloatingMessage(
                             "Ridwannzz AI: " + result,
                             Color.rgb(190, 175, 255)
@@ -361,7 +433,11 @@ public class FloatingService extends Service {
 
     private void hidePanel() {
         if (panel != null) {
-            wm.removeView(panel);
+            try {
+                wm.removeView(panel);
+            } catch (Exception ignored) {
+            }
+
             panel = null;
             messages = null;
             questionInput = null;
@@ -375,7 +451,10 @@ public class FloatingService extends Service {
         hidePanel();
 
         if (bubble != null) {
-            wm.removeView(bubble);
+            try {
+                wm.removeView(bubble);
+            } catch (Exception ignored) {
+            }
             bubble = null;
         }
 
